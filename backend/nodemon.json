@@ -1,0 +1,11 @@
+{
+  "ignore": [
+    "node_modules/*",
+    "logs/*",
+    "uploads/*"
+  ],
+  "exitcrash": true,
+  "verbose": true,
+  "watch": ["index.js"],
+  "ext": "js,json"
+}

@@ -1,0 +1,26 @@
+questions/questionText,questions/options/0/optionText,questions/options/0/isCorrect,questions/options/1/optionText,questions/options/1/isCorrect,questions/options/2/optionText,questions/options/2/isCorrect,questions/options/3/optionText,questions/options/3/isCorrect
+What is the formula for momentum?,p = mv,true,p = m/v,false,p = v/m,false,p = m²v,false
+"In a perfectly elastic collision, what is conserved?",Only momentum,false,Only kinetic energy,false,Both momentum and kinetic energy,true,Neither momentum nor kinetic energy,false
+What is the SI unit of force?,Joule,false,Newton,true,Pascal,false,Watt,false
+"According to Newton's Second Law, force equals:",Mass times velocity,false,Mass times acceleration,true,Mass divided by acceleration,false,Velocity times acceleration,false
+What happens to the momentum of an object if its velocity doubles?,Doubles,true,Halves,false,Quadruples,false,Remains the same,false
+What is impulse equal to?,Change in velocity,false,Change in momentum,true,Change in acceleration,false,Change in mass,false
+A force of 10 N acts on a 2 kg mass. What is its acceleration?,5 m/s²,true,20 m/s²,false,2 m/s²,false,8 m/s²,false
+Which of the following is the correct unit for work?,Joule,true,Newton,false,Watt,false,Pascal,false
+Which is the correct formula for kinetic energy?,KE = ½ mv²,true,KE = mv,false,KE = ½ m²v,false,KE = mgh,false
+What is the acceleration due to gravity on Earth?,9.8 m/s²,true,9.8 km/h²,false,10 m/s²,false,8.9 m/s²,false
+What is the formula for force?,F = ma,true,F = mv,false,F = m/v,false,F = m²a,false
+Which of the following describes an object in free fall?,It experiences a downward acceleration due to gravity.,true,It moves with constant speed.,false,Its velocity is zero.,false,It has no weight.,false
+Which of the following is true for an object moving in a circle at constant speed?,The object has a centripetal acceleration.,true,The object is not accelerating.,false,The object's speed is decreasing.,false,The object's velocity is constant.,false
+What is the total mechanical energy of an object in free fall at its highest point?,All energy is potential.,true,All energy is kinetic.,false,There is no energy.,false,The energy is evenly split between potential and kinetic.,false
+Which of the following is true about an object's motion when it reaches terminal velocity?,The object's acceleration becomes zero.,true,The object is still accelerating.,false,The object is moving faster.,false,The object's speed decreases.,false
+Which of the following is the correct unit for power?,Watt,true,Joule,false,Newton,false,Pascal,false
+What is the formula for gravitational potential energy?,PE = mgh,true,PE = mv²,false,PE = ½ mv²,false,PE = ma,false
+What is the relationship between work and energy?,Work is the transfer of energy.,true,Work is the force applied over distance.,false,Energy is the ability to do work.,false,They are unrelated.,false
+Which of the following is a scalar quantity?,Speed,true,Velocity,false,Acceleration,false,Force,false
+Which of the following is a vector quantity?,Velocity,true,Speed,false,Mass,false,Energy,false
+The formula for work is:,W = Fd cos(θ),true,W = Fd,false,W = mgh,false,W = mv²,false
+What is the formula for acceleration?,a = Δv/Δt,true,a = v/t,false,a = Δx/Δt,false,a = v²/t,false
+Which law explains the motion of an object based on the force applied?,Newton's Second Law,true,Newton's First Law,false,Newton's Third Law,false,Gravitational Law,false
+What is the unit of power?,Watt,true,Joule,false,Newton,false,Ampere,false
+Which of the following is the correct formula for acceleration?,a = Δv/Δt,true,a = Δx/Δt²,false,a = v/t,false,a = v²/t,false

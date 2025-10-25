@@ -1,0 +1,9 @@
+questionType,questionText,option1,isCorrect1,option2,isCorrect2,option3,isCorrect3,option4,isCorrect4,correctAnswer,blank1,blank2,blank3,leftItem1,leftItem2,leftItem3,rightItem1,rightItem2,rightItem3,correctMappings
+mcq,"What is the formula for kinetic energy?","KE = ½ mv²",true,"KE = mv",false,"KE = ½ m²v",false,"KE = mgh",false,,,,,,,,,,,,
+truefalse,"Velocity is a scalar quantity.",,,,,,,,,false,,,,,,,,,,,,
+fillblanks,"The work-energy theorem states that Work = change in ___ energy.",,,,,,,,,,"kinetic",,,,,,,,,
+matchfollowing,"Match the following:","Force",,,,,,,,,,,,"Newton","Momentum","kg⋅m/s","Energy","Joule","0:0,1:1,2:2"
+mcq,"What is the unit of power?","Joule",false,"Newton",false,"Watt",true,"Pascal",false,,,,,,,,,,,,
+truefalse,"An object at rest has zero momentum.",,,,,,,,,true,,,,,,,,,,,,
+fillblanks,"The formula for gravitational potential energy is PE = ___ where m is mass, g is gravity, and h is height.",,,,,,,,,,"mgh",,,,,,,,,
+matchfollowing,"Match the following laws:","Newton's First Law",,,,,,,,,,,,"Inertia","Newton's Second Law","F = ma","Newton's Third Law","Action-Reaction","0:0,1:1,2:2"

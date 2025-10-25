@@ -1,0 +1,82 @@
+{
+  "questions": [
+    {
+      "questionType": "mcq",
+      "questionText": "What is the formula for momentum?",
+      "options": [
+        { "optionText": "p = mv", "isCorrect": true },
+        { "optionText": "p = m/v", "isCorrect": false },
+        { "optionText": "p = v/m", "isCorrect": false },
+        { "optionText": "p = m²v", "isCorrect": false }
+      ]
+    },
+    {
+      "questionType": "truefalse",
+      "questionText": "Momentum is a vector quantity.",
+      "correctAnswer": true
+    },
+    {
+      "questionType": "fillblanks",
+      "questionText": "The formula for momentum is p = ___ where m is mass and v is ___.",
+      "blanks": ["mv", "velocity"]
+    },
+    {
+      "questionType": "matchfollowing",
+      "questionText": "Match the following physics quantities with their units:",
+      "leftItems": ["Force", "Momentum", "Energy", "Power"],
+      "rightItems": ["Newton", "kg⋅m/s", "Joule", "Watt"],
+      "correctMappings": [
+        { "leftIndex": 0, "rightIndex": 0 },
+        { "leftIndex": 1, "rightIndex": 1 },
+        { "leftIndex": 2, "rightIndex": 2 },
+        { "leftIndex": 3, "rightIndex": 3 }
+      ]
+    },
+    {
+      "questionType": "mcq",
+      "questionText": "In a perfectly elastic collision, what is conserved?",
+      "options": [
+        { "optionText": "Only momentum", "isCorrect": false },
+        { "optionText": "Only kinetic energy", "isCorrect": false },
+        { "optionText": "Both momentum and kinetic energy", "isCorrect": true },
+        { "optionText": "Neither momentum nor kinetic energy", "isCorrect": false }
+      ]
+    },
+    {
+      "questionType": "truefalse",
+      "questionText": "The acceleration due to gravity on Earth is 9.8 m/s².",
+      "correctAnswer": true
+    },
+    {
+      "questionType": "fillblanks",
+      "questionText": "Newton's Second Law states that Force = ___ × ___, where F is force, m is mass, and a is acceleration.",
+      "blanks": ["mass", "acceleration"]
+    },
+    {
+      "questionType": "matchfollowing",
+      "questionText": "Match the following laws with their descriptions:",
+      "leftItems": ["Newton's First Law", "Newton's Second Law", "Newton's Third Law"],
+      "rightItems": ["F = ma", "Action and reaction", "Inertia"],
+      "correctMappings": [
+        { "leftIndex": 0, "rightIndex": 2 },
+        { "leftIndex": 1, "rightIndex": 0 },
+        { "leftIndex": 2, "rightIndex": 1 }
+      ]
+    },
+    {
+      "questionType": "mcq",
+      "questionText": "What is the SI unit of force?",
+      "options": [
+        { "optionText": "Joule", "isCorrect": false },
+        { "optionText": "Newton", "isCorrect": true },
+        { "optionText": "Pascal", "isCorrect": false },
+        { "optionText": "Watt", "isCorrect": false }
+      ]
+    },
+    {
+      "questionType": "truefalse",
+      "questionText": "Speed is a vector quantity.",
+      "correctAnswer": false
+    }
+  ]
+}

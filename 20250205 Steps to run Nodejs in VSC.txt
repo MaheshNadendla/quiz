@@ -1,0 +1,42 @@
+open VS Code
+then open this directory on VS Code
+go to terminal then type cd frontend you'll move to frontend directory 
+then create one more terminal ( + option) then type cd backend you'll move to backend directory. 
+Then in the frontend terminal type npm run dev 
+and in backend type npx nodemon 
+then there will be a link shown in the frontend terminal 
+just copy that and paste it in the browser
+
+-----
+2025-02-05, from Node site, found this powershell codes: (as npm on terminal was giving error)
+# Download and install fnm:
+winget install Schniz.fnm
+
+# Download and install Node.js:
+fnm install 22
+
+# Verify the Node.js version:
+node -v # Should print "v22.13.1".
+
+# Verify npm version:
+npm -v # Should print "10.9.2".
+
+----
+The above didnt work for npm, so installed node installer from same site.
+now npm works but when run 'npm run dev', it shows vite error.
+so typed 'npm i'
+(12 vulnerabilities (5 moderate, 6 high, 1 critical))
+npm audit fix
+npm audit fix --force
+(2 vulnerabilities (1 moderate, 1 critical))
+Run `npm audit` for details.
+seems ok (just 2 vulnerabilities)
+---------------
+frontend folder: npm run dev  - seems working
+but in backend folder terminal, npx nodemon is not working.
+---
+npm install nodemon --global (in root folder)
+(now working in sub folder)
+localhost:4000
+{"success":true,"message":"Your server is up and running...."}
+----------

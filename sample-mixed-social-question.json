@@ -1,0 +1,83 @@
+{
+  "questions": [
+    {
+      "questionType": "mcq",
+      "questionText": "Who was the author of the book 'Poverty and Un-British Rule in India'?",
+      "options": [
+        { "optionText": "Mahatma Gandhi", "isCorrect": false },
+        { "optionText": "Dadabhai Naoroji", "isCorrect": true },
+        { "optionText": "Bal Gangadhar Tilak", "isCorrect": false },
+        { "optionText": "Jawaharlal Nehru", "isCorrect": false }
+      ]
+    },
+    {
+      "questionType": "truefalse",
+      "questionText": "The French Revolution began in 1789.",
+      "correctAnswer": true
+    },
+    {
+      "questionType": "fillblanks",
+      "questionText": "The ____________ Act of 1935 introduced provincial autonomy in India.",
+      "blanks": ["Government of India"]
+    },
+    {
+      "questionType": "matchfollowing",
+      "questionText": "Match the following leaders with their respective countries:",
+      "leftItems": ["Napoleon Bonaparte", "Adolf Hitler", "Mahatma Gandhi", "Abraham Lincoln"],
+      "rightItems": ["France", "Germany", "India", "USA"],
+      "correctMappings": [
+        { "leftIndex": 0, "rightIndex": 0 },
+        { "leftIndex": 1, "rightIndex": 1 },
+        { "leftIndex": 2, "rightIndex": 2 },
+        { "leftIndex": 3, "rightIndex": 3 }
+      ]
+    },
+    {
+      "questionType": "mcq",
+      "questionText": "Which river is known as the 'Sorrow of Bihar'?",
+      "options": [
+        { "optionText": "Ganga", "isCorrect": false },
+        { "optionText": "Kosi", "isCorrect": true },
+        { "optionText": "Brahmaputra", "isCorrect": false },
+        { "optionText": "Yamuna", "isCorrect": false }
+      ]
+    },
+    {
+      "questionType": "truefalse",
+      "questionText": "India is located entirely in the Southern Hemisphere.",
+      "correctAnswer": false
+    },
+    {
+      "questionType": "fillblanks",
+      "questionText": "The total number of Union Territories in India as of 2023 is ___.",
+      "blanks": ["8"]
+    },
+    {
+      "questionType": "matchfollowing",
+      "questionText": "Match the following Indian states with their capitals:",
+      "leftItems": ["Maharashtra", "Tamil Nadu", "Rajasthan", "West Bengal"],
+      "rightItems": ["Jaipur", "Chennai", "Kolkata", "Mumbai"],
+      "correctMappings": [
+        { "leftIndex": 0, "rightIndex": 3 },
+        { "leftIndex": 1, "rightIndex": 1 },
+        { "leftIndex": 2, "rightIndex": 0 },
+        { "leftIndex": 3, "rightIndex": 2 }
+      ]
+    },
+    {
+      "questionType": "mcq",
+      "questionText": "What is the primary sector of the Indian economy concerned with?",
+      "options": [
+        { "optionText": "Manufacturing goods", "isCorrect": false },
+        { "optionText": "Providing services", "isCorrect": false },
+        { "optionText": "Extracting and producing natural resources", "isCorrect": true },
+        { "optionText": "Information technology", "isCorrect": false }
+      ]
+    },
+    {
+      "questionType": "truefalse",
+      "questionText": "Democracy allows people to choose their representatives through elections.",
+      "correctAnswer": true
+    }
+  ]
+}

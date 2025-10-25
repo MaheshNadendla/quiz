@@ -1,0 +1,50 @@
+# OS-specific
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Node
+node_modules/
+package-lock.json
+
+# Environment
+.env
+.env.*
+
+# Build output
+dist/
+build/
+.vite/
+.vercel/
+
+# Optional IDE/project config
+.vscode/
+.idea/
+*.swp
+
+# System-generated
+directory_list.txt
+getFilesFolders.bat
+
+# Git
+.git/
+
+# Frontend-specific
+frontend/node_modules/
+frontend/.env
+frontend/.env.*
+frontend/dist/
+frontend/.vercel/
+
+# Backend-specific
+backend/node_modules/
+backend/.env
+backend/.env.*
+backend/uploads/
+backend/.vercel/
