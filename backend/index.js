@@ -35,42 +35,42 @@ app.use(
   })
 );
 
-// // Admin middleware (using Supabase now)
-// app.use("/api/admin", async (req, res, next) => {
-//   try {
-//     if (req.method === "GET") return next();
+// Admin middleware (using Supabase now)
+app.use("/api/admin", async (req, res, next) => {
+  try {
+    if (req.method === "GET") return next();
 
-//     // console.log("headers : ",req.headers)
+    console.log("headers : ",req.headers)
 
-//     const contentType = req.headers["content-type"] || "";
-//     if (contentType.includes("multipart/form-data")) return next();
+    const contentType = req.headers["content-type"] || "";
+    if (contentType.includes("multipart/form-data")) return next();
 
-//     const { googleId } = req.body || {};
+    const { googleId } = req.body || {};
 
-//     console.log("req.body & googleId : ",req.body) // => here the problem=> google id is not printing
+    console.log("req.body & googleId : ",req.body) // => here the problem=> google id is not printing
 
-//     if (!googleId)
-//       return res.status(401).json({ status: 401, message: "Missing credentials1" });
+    if (!googleId)
+      return res.status(401).json({ status: 401, message: "Missing credentials1" });
 
-//     const { data: user, error } = await supabase
-//       .from("users")
-//       .select("_id, is_admin")
-//       .eq("google_id", googleId)
-//       .single();
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("_id, is_admin")
+      .eq("google_id", googleId)
+      .single();
 
-//     if (error) {
-//       console.error(error);
-//       return res.status(500).json({ status: 500, message: "DB Error" });
-//     }
+    if (error) {
+      console.error(error);
+      return res.status(500).json({ status: 500, message: "DB Error" });
+    }
 
-//     if (user?.is_admin) return next();
+    if (user?.is_admin) return next();
 
-//     return res.status(403).json({ status: 403, message: "Not an authorized user" });
-//   } catch (e) {
-//     console.error(e);
-//     return res.status(500).json({ status: 500, message: "Auth middleware error" });
-//   }
-// });
+    return res.status(403).json({ status: 403, message: "Not an authorized user" });
+  } catch (e) {
+    console.error(e);
+    return res.status(500).json({ status: 500, message: "Auth middleware error" });
+  }
+});
 
 
 // Routes

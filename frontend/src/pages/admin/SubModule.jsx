@@ -109,12 +109,15 @@ function SubModuleList() {
           questionCount: questionsData.length,
         });
 
+
+
         await apiConnector("POST", `/admin/submodules/upload`, {
+          googleId : signupData.googleId,
           moduleId: key, 
           submoduleName: newSubmodule.name,
           isPro: newSubmodule.isPro,
           difficulty: newSubmodule.difficulty,
-          questions: questionsData,
+          questions: questionsData
         });
 
         console.log("hello man")
