@@ -1,9 +1,5 @@
 // courseControllers.js
-const Subject = require("../models/Subject.js");
-const Module = require("../models/Module");
-const SubModule = require("../models/SubModule");
-const Question = require("../models/Question");
-const mongoose = require("mongoose");
+const { supabase } = require("../config/database");
 
 /**
  * Get all subjects for the dashboard with optional search.
@@ -11,34 +7,35 @@ const mongoose = require("mongoose");
 exports.getSubjects = async (req, res) => {
   try {
     const { search, includeDisabled } = req.query;
+    const showAll = includeDisabled === "1" || includeDisabled === "true";
+    let query = supabase
+      .from("subjects")
+      .select(`
+        _id,
+        name,
+        description,
+        is_active,
+        created_at,
+        modules (
+          _id,
+          name,
+          is_active,
+          created_at
+        )
+      `);
 
-    // Build query for optional search
-    // ADDED: includeDisabled allows admin UI to fetch disabled content too
-    const showAll = includeDisabled === '1' || includeDisabled === 'true';
-    // Treat missing isActive as active for backward compatibility
-    let query = showAll
-      ? {}
-      : { $or: [{ isActive: true }, { isActive: { $exists: false } }] };
-    if (search) {
-      const searchClause = {
-        $or: [
-          { name: { $regex: search, $options: "i" } },
-          { description: { $regex: search, $options: "i" } },
-        ],
-      };
-      query = Object.keys(query).length ? { $and: [query, searchClause] } : searchClause;
-    }
+    if (!showAll) query = query.eq("is_active", true);
+    if (search) query = query.ilike("name", `%${search}%`);
 
-    // Fetch all subjects at once
-    //filter user query wala variable
-    // CHANGED: Filter subjects by isActive unless admin asks otherwise
-    const subjects = await Subject.find(query).sort({
-      name: 1,
+    const { data: subjects, error } = await query.order("name", {
+      ascending: true,
     });
+
+    if (error) throw error;
 
     res.json({
       subjects,
-      totalSubjects: subjects.length,
+      totalSubjects: subjects?.length || 0,
     });
   } catch (error) {
     res.status(500).json({
@@ -48,107 +45,116 @@ exports.getSubjects = async (req, res) => {
   }
 };
 
+/**
+ * Get submodules for a given module
+ */
 exports.getSubModules = async (req, res) => {
   try {
     const { key } = req.params;
-    const { includeDisabled: includeDisabledSub } = req.query;
-    const showAllSub = includeDisabledSub === '1' || includeDisabledSub === 'true';
+    const { includeDisabled } = req.query;
 
-    if (!key) {
-      return res.status(400).json({ error: "Valid key is required" });
-    }
-    // CHANGED: Only active submodules for users (treat missing isActive as active)
-    const subModules = await SubModule.find(
-      showAllSub
-        ? { moduleId: key }
-        : { moduleId: key, $or: [{ isActive: true }, { isActive: { $exists: false } }] }
-    );
-    if (!subModules) {
-      return res.status(404).json({ error: "No sub-modules for this module" });
-    }
+    const query = supabase.from("submodules").select("*").eq("module_id", key);
+    if (!includeDisabled) query.eq("is_active", true);
+
+    const { data: subModules, error } = await query;
+
+    if (error) throw error;
+
+    // Map DB fields to frontend expectations
+    const formatted = subModules.map((sm) => ({
+      _id: sm.id,
+      name: sm.name,
+      isActive: sm.is_active,
+      isPro: sm.is_pro,
+      difficulty: sm.difficulty,
+      created_at: sm.created_at,
+    }));
+
     res.json({
-      subModules,
-      totalSubModules: subModules?.length,
+      submodules: formatted,
+      totalSubModules: formatted.length,
     });
-  } catch (error) {
-    res.status(500).json({
-      error: "Failed to fetch submodules",
-      details: error.message,
-    });
+  } catch (err) {
+    console.error("Error fetching submodules:", err);
+    res.status(500).json({ error: "Failed to fetch submodules" });
   }
 };
 
+/**
+ * Get all modules and their submodules for a given subject
+ */
 exports.getModulesAndSubModules = async (req, res) => {
   try {
     const { subjectName } = req.params;
-    const { includeDisabled: includeDisabledMods } = req.query;
-    const showAllMods = includeDisabledMods === '1' || includeDisabledMods === 'true';
+    const { includeDisabled } = req.query;
+    const showAll = includeDisabled === "1" || includeDisabled === "true";
 
-    // Validate subject name
-    if (!subjectName || typeof subjectName !== "string") {
-      return res.status(400).json({ error: "Valid subject name is required" });
-    }
+    // Find subject by name
+    const { data: subject, error: subjectError } = await supabase
+      .from("subjects")
+      .select("_id, name, description")
+      .ilike("name", subjectName)
+      .maybeSingle(); // Safer than .single() to avoid fatal errors
 
-    // Find the subject by name (Exact match using regex)
-    const subject = await Subject.findOne(
-      {
-        name: { $regex: new RegExp(`^${subjectName}$`, "i") },
-        ...(showAllMods ? {} : { $or: [{ isActive: true }, { isActive: { $exists: false } }] }),
-      },
-      "_id name description modules"
-    ).populate({
-      path: "modules",
-      // CHANGED: select isActive for filtering in memory when needed
-      select: "_id name subModules isActive",
-      populate: {
-        path: "subModules",
-        select: "_id name isPro questions difficulty isActive",
-      },
+    if (subjectError || !subject)
+      return res.status(404).json({ error: "Subject not found" });
+
+    // Get modules for this subject
+    let modQuery = supabase
+      .from("modules")
+      .select("_id, name, is_active")
+      .eq("subject_id", subject._id);
+    if (!showAll) modQuery = modQuery.eq("is_active", true);
+
+    const { data: modules, error: modError } = await modQuery;
+    if (modError) throw modError;
+
+    // Get submodules for all modules
+    const moduleIds = modules.map((m) => m._id);
+    let subQuery = supabase
+      .from("submodules")
+      .select("_id, name, is_pro, difficulty, is_active, module_id");
+
+    if (moduleIds.length) subQuery = subQuery.in("module_id", moduleIds);
+    if (!showAll) subQuery = subQuery.eq("is_active", true);
+
+    const { data: submodules, error: subError } = await subQuery;
+    if (subError) throw subError;
+
+    // Get question counts grouped by submodule
+    const subIds = submodules.map((s) => s._id);
+    let qQuery = supabase
+      .from("questions")
+      .select("submodule_id", { count: "exact", head: true });
+
+    if (subIds.length) qQuery = qQuery.in("submodule_id", subIds);
+
+    const { count, error: qError } = await qQuery;
+    if (qError) console.warn("Question count fetch error:", qError.message);
+
+    // Combine data
+    const modulesWithSubs = modules.map((m) => {
+      const subMods = submodules.filter((s) => s.module_id === m._id);
+      const formattedSubs = subMods.map((sm) => ({
+        _id: sm._id,
+        name: sm.name,
+        isPro: sm.is_pro,
+        difficulty: sm.difficulty,
+        questionCount: count || 0,
+      }));
+      return {
+        _id: m._id,
+        name: m.name,
+        isActive: m.is_active,
+        subModules: formattedSubs,
+        totalSubModules: formattedSubs.length,
+      };
     });
 
-    if (!subject) {
-      return res.status(404).json({ error: "Subject not found" });
-    }
-
-    const modulesWithSubModules = await Promise.all(
-      subject.modules
-        .filter((m) => (showAllMods ? true : m.isActive !== false))
-        .map(async (module) => {
-        const subModulesWithCounts = await Promise.all(
-          module.subModules
-            .filter((sm) => (showAllMods ? true : sm.isActive !== false))
-            .map(async (subModule) => {
-            // console.log(subModule);
-            const questionCount = subModule.questions?.length || 0;
-            return {
-              id: subModule._id,
-              name: subModule.name,
-              isPro: subModule.isPro,
-              difficulty: subModule.difficulty,
-              questionCount,
-            };
-          })
-        );
-
-        return {
-          name: module.name,
-          id: module._id, // Include the module id
-          // ADDED: include isActive so admin UI can show correct toggle label
-          isActive: module.isActive,
-          subModules: subModulesWithCounts,
-          totalSubModules: subModulesWithCounts.length,
-        };
-      })
-    );
-
     res.json({
-      subject: {
-        id: subject._id,
-        name: subject.name,
-        description: subject.description,
-      },
-      modules: modulesWithSubModules,
-      totalModules: subject.modules.length,
+      subject,
+      modules: modulesWithSubs,
+      totalModules: modulesWithSubs.length,
     });
   } catch (error) {
     res.status(500).json({
@@ -159,81 +165,38 @@ exports.getModulesAndSubModules = async (req, res) => {
 };
 
 /**
- * Get questions for a specific submodule with cursor-based pagination.
+ * Get questions for a specific submodule with pagination
  */
 exports.getQuestions = async (req, res) => {
   try {
-    const { subjectName, subModuleId } = req.params;
+    const { subModuleId } = req.params;
     const { difficulty, lastQuestionId, limit = 10 } = req.query;
 
-    // Validate subject name
-    const subject = await Subject.findOne({
-      name: { $regex: new RegExp(`^${subjectName}$`, "i") }, // Exact match regex
-    });
-    if (!subject) {
-      return res.status(404).json({ error: "Subject not found" });
-    }
+    if (!subModuleId)
+      return res.status(400).json({ error: "Submodule ID is required" });
 
-    // Validate submodule ID
-    if (!mongoose.Types.ObjectId.isValid(subModuleId)) {
-      return res.status(400).json({ error: "Invalid submodule ID" });
-    }
+    let query = supabase
+      .from("questions")
+      .select(
+        "_id, question_text, options, correct_answer, question_type, difficulty"
+      )
+      .eq("submodule_id", subModuleId)
+      .order("created_at", { ascending: true })
+      .limit(parseInt(limit));
 
-    // Find submodule and validate it belongs to a module under the subject
-    const subModule = await SubModule.findById(subModuleId);
-    if (!subModule) {
-      return res.status(404).json({ error: "Submodule not found" });
-    }
+    if (difficulty) query = query.eq("difficulty", difficulty);
+    if (lastQuestionId) query = query.gt("_id", lastQuestionId);
 
-    const module = await Module.findOne({
-      _id: subModule.moduleId,
-      subjectId: subject._id,
-    });
-    if (!module) {
-      return res.status(404).json({
-        error: "Submodule does not belong to the specified subject",
-      });
-    }
-
-    // Build base query
-    let query = { subModuleId };
-    if (difficulty) {
-      query.difficulty = difficulty.toLowerCase();
-    }
-    if (lastQuestionId) {
-      query._id = { $gt: lastQuestionId };
-    }
-
-    // Validate limit
-    const limitNumber = parseInt(limit);
-    if (isNaN(limitNumber) || limitNumber < 1) {
-      return res.status(400).json({ error: "Invalid limit number" });
-    }
-
-    // Fetch questions using cursor-based pagination
-    const questions = await Question.find(query)
-      .select("questionText options difficulty")
-      .sort({ _id: 1 })
-      .limit(limitNumber + 1);
-
-    const hasMore = questions.length > limitNumber;
-    const finalQuestions = questions.slice(0, limitNumber);
-    const lastQuestion = finalQuestions[finalQuestions.length - 1];
-    const nextCursor = hasMore ? lastQuestion._id : null;
-
-    const totalQuestions = await Question.countDocuments({ subModuleId });
+    const { data: questions, error } = await query;
+    if (error) throw error;
 
     res.json({
-      subModule: {
-        id: subModule._id,
-        name: subModule.name,
-        isPro: subModule.isPro,
-      },
-      questions: finalQuestions,
+      questions,
       pagination: {
-        hasMore,
-        nextCursor,
-        totalQuestions,
+        hasMore: questions.length === parseInt(limit),
+        nextCursor: questions.length
+          ? questions[questions.length - 1]._id
+          : null,
       },
     });
   } catch (error) {

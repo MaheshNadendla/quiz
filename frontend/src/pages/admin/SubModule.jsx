@@ -19,6 +19,8 @@ function SubModuleList() {
   const [selectedFile, setSelectedFile] = useState(null);
   const { signupData } = useSelector((state) => state.auth);
 
+  console.log("sign up data : ",signupData)
+
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const key = searchParams.get("key");
@@ -31,7 +33,7 @@ function SubModuleList() {
   const fetchsubModules = async () => {
     try {
       const response = await apiConnector("GET", `/modules/submodules/${key}?includeDisabled=1`);
-      setSubmodules(response.data.subModules);
+      setSubmodules(response.data.submodules);
     } catch (e) {
       toast.error("Failed to fetch submodules");
     }
@@ -77,32 +79,85 @@ function SubModuleList() {
   const createSubmodule = async (e) => {
     e.preventDefault();
 
-    if (!newSubmodule.name.trim() || !selectedFile) {
-      toast.error("Please fill all required fields and upload a questions file");
+    if (!newSubmodule.name.trim()) {
+      toast.error("Please enter a submodule name");
+      return;
+    }
+
+    if (!selectedFile) {
+      toast.error("Please upload a questions file (.json or .xlsx)");
       return;
     }
 
     setIsCreating(true);
-    const formData = new FormData();
-    formData.append("name", newSubmodule.name);
-    formData.append("difficulty", newSubmodule.difficulty);
-    formData.append("isPro", newSubmodule.isPro.toString());
-    formData.append("moduleId", key);
-    if (signupData?.googleId) formData.append("googleId", signupData.googleId);
-    formData.append("file", selectedFile);
 
     try {
-      await apiConnector("POST", "/admin/submodules/upload", formData);
-      toast.success("Submodule created successfully");
+      const fileType = selectedFile.type;
+      console.log("Selected file type:", fileType);
+
+      // CASE 1: JSON upload
+      if (fileType === "application/json") {
+        const text = await selectedFile.text();
+        const questionsData = JSON.parse(text);
+
+        console.log("question data : ",questionsData)
+
+
+        console.log("Uploading JSON data →", {
+          moduleId: key,
+          submoduleName: newSubmodule.name,
+          questionCount: questionsData.length,
+        });
+
+        await apiConnector("POST", `/admin/submodules/upload`, {
+          moduleId: key, 
+          submoduleName: newSubmodule.name,
+          isPro: newSubmodule.isPro,
+          difficulty: newSubmodule.difficulty,
+          questions: questionsData,
+        });
+
+        console.log("hello man")
+
+        // submodules/upload
+
+      }
+      else {
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+        formData.append("moduleId", key);
+        formData.append("submoduleName", newSubmodule.name);
+        formData.append("isPro", newSubmodule.isPro);
+        formData.append("difficulty", newSubmodule.difficulty);
+
+        console.log("Uploading Excel file →", {
+          moduleId: key,
+          submoduleName: newSubmodule.name,
+          fileName: selectedFile.name,
+        });
+
+        await apiConnector("POST", "/admin/submodules/upload", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+
+      }
+
+      toast.success("Submodule created successfully 🎉");
       fetchsubModules();
       resetForm();
     } catch (err) {
-      const msg = err?.response?.data?.details || err?.response?.data?.error || "Failed to create submodule";
+      console.error("Upload faileds:", err.response?.data || err.message || err);
+      const msg =
+        err?.response?.data?.error ||
+        err?.response?.data?.details ||
+        "Failed to create submodule";
       toast.error(msg);
     } finally {
       setIsCreating(false);
     }
   };
+
+
 
   const resetForm = () => {
     setNewSubmodule({
@@ -166,7 +221,7 @@ function SubModuleList() {
         {showCreateForm && (
           <div className="bg-white rounded-2xl shadow-xl border border-purple-100 p-8 mb-8 transform transition-all duration-300 animate-slideDown">
             <h3 className="text-2xl font-bold text-gray-900 mb-6">Create New Submodule</h3>
-            
+
             <form onSubmit={createSubmodule} className="space-y-5">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -191,11 +246,10 @@ function SubModuleList() {
                   {["easy", "medium", "hard"].map((level) => (
                     <label
                       key={level}
-                      className={`relative flex items-center justify-center px-4 py-3 border-2 rounded-xl cursor-pointer transition-all ${
-                        newSubmodule.difficulty === level
-                          ? "border-purple-500 bg-purple-50"
-                          : "border-gray-200 bg-white hover:border-gray-300"
-                      }`}
+                      className={`relative flex items-center justify-center px-4 py-3 border-2 rounded-xl cursor-pointer transition-all ${newSubmodule.difficulty === level
+                        ? "border-purple-500 bg-purple-50"
+                        : "border-gray-200 bg-white hover:border-gray-300"
+                        }`}
                     >
                       <input
                         type="radio"
@@ -205,9 +259,8 @@ function SubModuleList() {
                         onChange={handleInputChange}
                         className="sr-only"
                       />
-                      <span className={`text-sm font-medium ${
-                        newSubmodule.difficulty === level ? "text-purple-700" : "text-gray-600"
-                      }`}>
+                      <span className={`text-sm font-medium ${newSubmodule.difficulty === level ? "text-purple-700" : "text-gray-600"
+                        }`}>
                         {level.charAt(0).toUpperCase() + level.slice(1)}
                       </span>
                     </label>
@@ -279,7 +332,7 @@ function SubModuleList() {
                 <p className="text-2xl font-bold text-gray-900">{submodules.length}</p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-400 rounded-xl flex items-center justify-center">
                 <FiEye className="text-white w-6 h-6" />
@@ -291,7 +344,7 @@ function SubModuleList() {
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-gradient-to-br from-amber-400 to-yellow-400 rounded-xl flex items-center justify-center">
                 <Award className="text-white w-6 h-6" />
@@ -337,7 +390,7 @@ function SubModuleList() {
                       <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-lg flex items-center justify-center font-bold flex-shrink-0">
                         {index + 1}
                       </div>
-                      
+
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <h3 className="text-lg font-semibold text-gray-900 mb-2 flex items-center gap-2 flex-wrap">
@@ -349,7 +402,7 @@ function SubModuleList() {
                             </span>
                           )}
                         </h3>
-                        
+
                         {/* Meta Info */}
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className={`inline-flex items-center gap-1 text-xs font-medium px-3 py-1 rounded-lg border ${diffConfig.bg} ${diffConfig.text} ${diffConfig.border}`}>
@@ -380,11 +433,10 @@ function SubModuleList() {
                       )}
                       <button
                         onClick={() => toggleSubmodule(submodule._id, submodule.isActive)}
-                        className={`px-3 py-2 rounded-lg transition-colors font-medium text-sm ${
-                          submodule.isActive
-                            ? 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                            : 'bg-green-50 hover:bg-green-100 text-green-700'
-                        }`}
+                        className={`px-3 py-2 rounded-lg transition-colors font-medium text-sm ${submodule.isActive
+                          ? 'bg-gray-100 hover:bg-gray-200 text-gray-700'
+                          : 'bg-green-50 hover:bg-green-100 text-green-700'
+                          }`}
                       >
                         {submodule.isActive ? <FiEyeOff className="w-4 h-4" /> : <FiEye className="w-4 h-4" />}
                       </button>

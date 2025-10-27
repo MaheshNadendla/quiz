@@ -1,35 +1,66 @@
+// import axios from "axios";
+
+// const derivedBaseUrl =
+//   import.meta.env.VITE_API_BASE_URL || `${window.location.origin}/api`;
+
+// export const axiosInstance = axios.create({
+//   baseURL: derivedBaseUrl,
+// });
+
+// axiosInstance.interceptors.request.use((config) => {
+//   const token = localStorage.getItem("token");
+//   if (token) {
+//     config.headers = config.headers || {};
+//     config.headers.Authorization = `Bearer ${token}`;
+//   }
+//   return config;
+// });
+
+// export const apiConnector = (method, url, bodyData, headers, params) => {
+//   return axiosInstance({
+//     method: `${method}`,
+//     url: `${url}`,
+//     data: bodyData ? bodyData : null,
+//     headers: headers ? headers : null,
+//     params: params ? params : null,
+//   });
+// };
+
+
 import axios from "axios";
 
+// Base URL setup
 const derivedBaseUrl =
   import.meta.env.VITE_API_BASE_URL || `${window.location.origin}/api`;
 
+// Create axios instance
 export const axiosInstance = axios.create({
   baseURL: derivedBaseUrl,
 });
 
-// Attach Authorization header if token exists
+// ✅ Interceptor to attach token safely
 axiosInstance.interceptors.request.use((config) => {
-  try {
-    const rawToken = localStorage.getItem("token");
-    if (rawToken) {
-      const token = JSON.parse(rawToken);
-      if (token) {
-        config.headers = config.headers || {};
-        config.headers.Authorization = `Bearer ${token}`;
-      }
-    }
-  } catch {
-    // ignore JSON parse errors
+  let token = localStorage.getItem("token");
+
+  if (token) {
+    // 🔧 Remove accidental quotes if token was stringified before
+    token = token.replace(/^"|"$/g, "");
+
+    config.headers = config.headers || {};
+    config.headers.Authorization = `Bearer ${token}`;
   }
+
   return config;
 });
 
+// ✅ Reusable API connector
 export const apiConnector = (method, url, bodyData, headers, params) => {
   return axiosInstance({
-    method: `${method}`,
-    url: `${url}`,
-    data: bodyData ? bodyData : null,
-    headers: headers ? headers : null,
-    params: params ? params : null,
+    method: method,
+    url: url,
+    data: bodyData || null,
+    headers: headers || {},
+    params: params || {},
   });
 };
+

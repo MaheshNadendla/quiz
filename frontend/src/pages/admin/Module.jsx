@@ -15,6 +15,8 @@ const ModuleList = () => {
   const { signupData } = useSelector((state) => state.auth);
   const [subjectId, setSubjectId] = useState("");
 
+  
+
   const location = useLocation();
   const searchParams = new URLSearchParams(location.search);
   const key = searchParams.get("key");
@@ -26,26 +28,44 @@ const ModuleList = () => {
   const fetchModules = async () => {
     try {
       const response = await apiConnector("GET", `/courses/${courseName}?includeDisabled=1`);
-      setModules(response.data.modules);
-      setSubjectId(response.data.subject?.id || "");
-    } catch {
+
+      if (!response?.data?.modules) {
+        toast.error("No modules found for this course");
+        setModules([]);
+        return;
+      }
+
+      const mappedModules = response.data.modules.map((m) => ({
+        _id: m._id,
+        name: m.name,
+        isActive: m.isActive ?? m.is_active ?? true,
+      }));
+
+      setModules(mappedModules);
+      setSubjectId(response.data.subject?._id || "");
+    } catch (e) {
+      console.error(e);
       toast.error("Failed to fetch modules");
     }
   };
 
   const toggleModule = async (moduleId, currentIsActive) => {
     const enable = !currentIsActive;
-    const confirmed = window.confirm(`${enable ? 'Enable' : 'Disable'} this module?`);
+    const confirmed = window.confirm(`${enable ? "Enable" : "Disable"} this module?`);
     if (!confirmed) return;
+
     try {
       await apiConnector("PATCH", `/admin/modules/${moduleId}/toggle`, {
         isActive: enable,
         googleId: signupData?.googleId,
       });
-      toast.success(`Module ${enable ? 'enabled' : 'disabled'} successfully`);
+      toast.success(`Module ${enable ? "enabled" : "disabled"} successfully`);
       fetchModules();
     } catch (e) {
-      const msg = e?.response?.data?.details || e?.response?.data?.error || "Failed to toggle module";
+      const msg =
+        e?.response?.data?.details ||
+        e?.response?.data?.error ||
+        "Failed to toggle module";
       toast.error(msg);
     }
   };
@@ -113,11 +133,11 @@ const ModuleList = () => {
           </button>
         </div>
 
-        {/* Create Form */}
+        {/* Create Module Form */}
         {showCreateModule && (
-          <div className="bg-white rounded-2xl shadow-xl border border-purple-100 p-6 mb-8 transform transition-all duration-300 animate-slideDown">
+          <div className="bg-white rounded-2xl shadow-xl border border-purple-100 p-6 mb-8 animate-slideDown">
             <h3 className="text-xl font-bold text-gray-900 mb-4">Create New Module</h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -131,7 +151,7 @@ const ModuleList = () => {
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none transition-colors"
                 />
               </div>
-              
+
               <button
                 onClick={createModule}
                 disabled={isCreating}
@@ -155,7 +175,7 @@ const ModuleList = () => {
                 <p className="text-2xl font-bold text-gray-900">{modules.length}</p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-400 rounded-xl flex items-center justify-center">
                 <FiEye className="text-white w-6 h-6" />
@@ -163,11 +183,11 @@ const ModuleList = () => {
               <div>
                 <p className="text-sm text-gray-600">Active</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {modules.filter(m => m.isActive).length}
+                  {modules.filter((m) => m.isActive).length}
                 </p>
               </div>
             </div>
-            
+
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-gradient-to-br from-gray-400 to-gray-500 rounded-xl flex items-center justify-center">
                 <FiEyeOff className="text-white w-6 h-6" />
@@ -175,7 +195,7 @@ const ModuleList = () => {
               <div>
                 <p className="text-sm text-gray-600">Disabled</p>
                 <p className="text-2xl font-bold text-gray-900">
-                  {modules.filter(m => !m.isActive).length}
+                  {modules.filter((m) => !m.isActive).length}
                 </p>
               </div>
             </div>
@@ -184,26 +204,24 @@ const ModuleList = () => {
 
         {/* Modules List */}
         <div className="space-y-4">
-          {modules?.map((module, index) => (
+          {modules.map((module, index) => (
             <div
-              key={module.id}
+              key={module._id}
               className="group bg-white rounded-xl border border-gray-200 hover:border-purple-300 transition-all duration-300 hover:shadow-md overflow-hidden"
               style={{
-                animation: `fadeInUp 0.4s ease-out ${index * 0.05}s both`
+                animation: `fadeInUp 0.4s ease-out ${index * 0.05}s both`,
               }}
             >
               <div className="p-5">
                 <div className="flex items-center justify-between gap-4">
                   <Link
-                    to={`/admin/courses/modules/${module.name}?key=${module.id}&subjectId=${subjectId}`}
+                    to={`/admin/courses/modules/${module.name}?key=${module._id}&subjectId=${subjectId}`}
                     className="flex items-center gap-4 flex-1 min-w-0 group/link"
                   >
-                    {/* Module Number Badge */}
                     <div className="w-10 h-10 bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-lg flex items-center justify-center font-bold flex-shrink-0 group-hover/link:scale-110 transition-transform">
                       {index + 1}
                     </div>
-                    
-                    {/* Module Name */}
+
                     <div className="flex-1 min-w-0">
                       <h3 className="text-lg font-semibold text-gray-900 group-hover/link:text-purple-600 transition-colors truncate">
                         {module.name}
@@ -217,13 +235,12 @@ const ModuleList = () => {
                     </div>
                   </Link>
 
-                  {/* Toggle Button */}
                   <button
-                    onClick={() => toggleModule(module.id, module.isActive)}
+                    onClick={() => toggleModule(module._id, module.isActive)}
                     className={`px-4 py-2 rounded-lg transition-colors font-medium text-sm flex items-center gap-2 flex-shrink-0 ${
                       module.isActive
-                        ? 'bg-gray-100 hover:bg-gray-200 text-gray-700'
-                        : 'bg-green-50 hover:bg-green-100 text-green-700'
+                        ? "bg-gray-100 hover:bg-gray-200 text-gray-700"
+                        : "bg-green-50 hover:bg-green-100 text-green-700"
                     }`}
                   >
                     {module.isActive ? (
@@ -265,30 +282,14 @@ const ModuleList = () => {
 
       <style>{`
         @keyframes fadeInUp {
-          from {
-            opacity: 0;
-            transform: translateY(20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; transform: translateY(20px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-
         @keyframes slideDown {
-          from {
-            opacity: 0;
-            transform: translateY(-20px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
+          from { opacity: 0; transform: translateY(-20px); }
+          to { opacity: 1; transform: translateY(0); }
         }
-
-        .animate-slideDown {
-          animation: slideDown 0.3s ease-out;
-        }
+        .animate-slideDown { animation: slideDown 0.3s ease-out; }
       `}</style>
     </div>
   );

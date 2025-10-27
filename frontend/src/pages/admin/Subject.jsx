@@ -75,18 +75,29 @@ const SubjectList = () => {
   };
 
   const toggleSubject = async (subjectId, currentIsActive) => {
+    if (!subjectId) {
+      alert("Error: Subject ID is missing!");
+      console.error("toggleSubject called with undefined ID");
+      return;
+    }
+
     const enable = !currentIsActive;
-    const confirmed = window.confirm(`${enable ? 'Enable' : 'Disable'} this subject?`);
+    const confirmed = window.confirm(`${enable ? "Enable" : "Disable"} this subject?`);
     if (!confirmed) return;
+
     try {
       await apiConnector("PATCH", `/admin/subjects/${subjectId}/toggle`, {
         isActive: enable,
         googleId: signupData?.googleId,
       });
-      toast.success(`Subject ${enable ? 'enabled' : 'disabled'} successfully`);
+
+      toast.success(`Subject ${enable ? "enabled" : "disabled"} successfully`);
       fetchSubjects();
     } catch (e) {
-      const msg = e?.response?.data?.details || e?.response?.data?.error || "Failed to toggle subject";
+      const msg =
+        e?.response?.data?.details ||
+        e?.response?.data?.error ||
+        "Failed to toggle subject";
       toast.error(msg);
     }
   };
@@ -130,7 +141,7 @@ const SubjectList = () => {
               </div>
               Create New Subject
             </h3>
-            
+
             <div className="space-y-4">
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
@@ -144,7 +155,7 @@ const SubjectList = () => {
                   className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-purple-500 focus:outline-none transition-colors"
                 />
               </div>
-              
+
               <div>
                 <label className="block text-sm font-semibold text-gray-700 mb-2">
                   Description
@@ -157,7 +168,7 @@ const SubjectList = () => {
                   rows="4"
                 />
               </div>
-              
+
               <button
                 onClick={createSubject}
                 disabled={isCreating}
@@ -182,13 +193,13 @@ const SubjectList = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-white rounded-xl shadow-md border border-green-100 p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm font-medium">Active</p>
                 <p className="text-3xl font-bold text-gray-900 mt-1">
-                  {subjects.filter(s => s.isActive).length}
+                  {subjects.filter(s => s.is_active).length}
                 </p>
               </div>
               <div className="w-12 h-12 bg-gradient-to-br from-green-400 to-emerald-400 rounded-xl flex items-center justify-center">
@@ -196,13 +207,13 @@ const SubjectList = () => {
               </div>
             </div>
           </div>
-          
+
           <div className="bg-white rounded-xl shadow-md border border-gray-100 p-6">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-gray-600 text-sm font-medium">Disabled</p>
                 <p className="text-3xl font-bold text-gray-900 mt-1">
-                  {subjects.filter(s => !s.isActive).length}
+                  {subjects.filter(s => !s.is_active).length}
                 </p>
               </div>
               <div className="w-12 h-12 bg-gradient-to-br from-gray-400 to-gray-500 rounded-xl flex items-center justify-center">
@@ -228,13 +239,13 @@ const SubjectList = () => {
                 <div className={`h-14 bg-gradient-to-br ${gradient} relative overflow-hidden`}>
                   <div className="absolute inset-0 bg-white/10 backdrop-blur-sm"></div>
                   <div className="absolute bottom-3 left-4 right-4">
-                    {!subject.isActive && (
+                    {!subject.is_active && (
                       <span className="inline-flex items-center gap-1 text-xs bg-gray-900/80 text-white px-3 py-1 rounded-full font-medium backdrop-blur-sm">
                         <FiEyeOff className="w-3 h-3" />
                         Disabled
                       </span>
                     )}
-                    {subject.isActive && (
+                    {subject.is_active && (
                       <span className="inline-flex items-center gap-1 text-xs bg-white/80 text-gray-900 px-3 py-1 rounded-full font-medium backdrop-blur-sm">
                         <FiEye className="w-3 h-3" />
                         Active
@@ -248,7 +259,7 @@ const SubjectList = () => {
                   <h3 className="text-xl font-bold text-gray-900 mb-3 line-clamp-2">
                     {subject.name}
                   </h3>
-                  
+
                   <div className="flex items-center gap-2 text-gray-600 mb-4">
                     <Layers className="w-4 h-4 text-purple-500" />
                     <span className="text-sm font-medium">
@@ -264,15 +275,15 @@ const SubjectList = () => {
                     >
                       Open
                     </Link>
+
                     <button
-                      onClick={() => toggleSubject(subject._id, subject.isActive)}
-                      className={`flex-1 ${
-                        subject.isActive
+                      onClick={() => toggleSubject(subject._id, subject.is_active)}
+                      className={`flex-1 ${subject.is_active
                           ? 'bg-gradient-to-r from-red-500 to-rose-500 hover:shadow-red-200'
                           : 'bg-gradient-to-r from-green-500 to-emerald-500 hover:shadow-green-200'
-                      } text-white px-4 py-2.5 rounded-xl hover:shadow-lg transition-all duration-300 font-medium text-sm`}
+                        } text-white px-4 py-2.5 rounded-xl hover:shadow-lg transition-all duration-300 font-medium text-sm`}
                     >
-                      {subject.isActive ? 'Disable' : 'Enable'}
+                      {subject.is_active ? 'Disable' : 'Enable'}
                     </button>
                   </div>
                 </div>

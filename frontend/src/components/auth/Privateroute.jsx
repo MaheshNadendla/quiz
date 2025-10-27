@@ -5,6 +5,9 @@ import { Navigate } from "react-router-dom";
 const PrivateRoute = ({ children }) => {
   const { signupData } = useSelector((state) => state.auth);
   const isLoggedIn = Boolean(signupData);
+
+  // console.log("sign up data : ",signupData)
+
   if (isLoggedIn) return children;
   return <Navigate to="/" />;
 };

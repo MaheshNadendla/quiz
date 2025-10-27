@@ -1,69 +1,54 @@
-// utils/mailer.js
-const nodemailer = require("nodemailer");
+import nodemailer from "nodemailer";
 
 // Create and configure nodemailer transport
 const transporter = nodemailer.createTransport({
   service: "gmail",
   auth: {
-    user: "your-email@gmail.com", // Replace with your email
-    pass: "your-email-password", // Replace with your email password or app password
+    user: process.env.MAIL_USER, // e.g., your-email@gmail.com
+    pass: process.env.MAIL_PASS, // Gmail App Password (not raw password)
   },
 });
 
-// Function to send email with custom HTML layout
-const sendEmail = (fromEmail, name, message) => {
+// Function to send an email with custom HTML layout
+export const sendEmail = async (fromEmail, name, message) => {
   const mailOptions = {
-    from: fromEmail,
-    to: "admin-email@example.com", // Replace with admin's email
-    subject: `Contact us query from ${name}`,
-    text: message,
+    from: process.env.MAIL_USER,
+    to: process.env.ADMIN_EMAIL || "admin@example.com", // Default admin email
+    subject: `Contact Us Query from ${name}`,
     html: `
       <html>
         <head>
           <style>
             body {
               font-family: Arial, sans-serif;
-              color: #333;
+              background-color: #f4f4f4;
               margin: 0;
               padding: 0;
-              background-color: #f4f4f4;
             }
             .email-container {
-              width: 100%;
               max-width: 600px;
-              margin: 0 auto;
+              margin: 20px auto;
               background-color: #fff;
               padding: 20px;
               border-radius: 8px;
               box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
             }
             .email-header {
-              text-align: center;
-              padding: 10px;
               background-color: #0077b6;
               color: white;
+              padding: 10px;
+              text-align: center;
               border-radius: 8px 8px 0 0;
             }
             .email-body {
               padding: 20px;
               line-height: 1.6;
             }
-            .email-footer {
-              text-align: center;
-              margin-top: 30px;
-              padding: 10px;
-              font-size: 12px;
-              color: #777;
-            }
             .message {
               background-color: #f9f9f9;
               padding: 10px;
               border-left: 4px solid #0077b6;
               margin-top: 10px;
-            }
-            .footer-text {
-              font-size: 12px;
-              color: #555;
             }
           </style>
         </head>
@@ -80,22 +65,18 @@ const sendEmail = (fromEmail, name, message) => {
                 <p>${message}</p>
               </div>
             </div>
-            
           </div>
         </body>
       </html>
     `,
   };
 
-  return new Promise((resolve, reject) => {
-    transporter.sendMail(mailOptions, (error, info) => {
-      if (error) {
-        reject(error);
-      } else {
-        resolve(info.response);
-      }
-    });
-  });
+  try {
+    const info = await transporter.sendMail(mailOptions);
+    console.log("Email sent successfully:", info.response);
+    return info.response;
+  } catch (error) {
+    console.error("Error sending email:", error);
+    throw new Error("Failed to send email");
+  }
 };
-
-module.exports = { sendEmail };

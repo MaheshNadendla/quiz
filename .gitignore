@@ -15,7 +15,6 @@ package-lock.json
 
 # Environment
 .env
-.env.*
 
 # Build output
 dist/
@@ -38,13 +37,11 @@ getFilesFolders.bat
 # Frontend-specific
 frontend/node_modules/
 frontend/.env
-frontend/.env.*
 frontend/dist/
 frontend/.vercel/
 
 # Backend-specific
 backend/node_modules/
 backend/.env
-backend/.env.*
 backend/uploads/
 backend/.vercel/

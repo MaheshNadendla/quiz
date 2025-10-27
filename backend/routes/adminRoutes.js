@@ -1,38 +1,48 @@
 const express = require("express");
+const multer = require("multer");
 const adminController = require("../controllers/adminControllers");
+const { verifyAdmin } = require("../middleware/authMiddleware");
 const router = express.Router();
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, "uploads/");
+  },
+  filename: (req, file, cb) => {
+    const uniqueSuffix = Date.now() + "-" + Math.round(Math.random() * 1e9);
+    cb(null, uniqueSuffix + path.extname(file.originalname));
+  },
+});
+const upload = multer({ storage });
 
+// ------------------ SUBJECT ROUTES ------------------
 router.post("/subjects", adminController.addSubject);
 router.put("/subjects/:id", adminController.updateSubject);
-// CHANGED: Use soft-delete by default on DELETE, and expose explicit toggle routes
 router.delete("/subjects/:id", adminController.deleteSubject);
 router.patch("/subjects/:id/toggle", adminController.toggleSubjectActive);
 
+// ------------------ MODULE ROUTES ------------------
 router.post("/modules", adminController.addModule);
-// router.put("/modules/:id", adminController.updateModule);
 router.delete("/modules/:id", adminController.deleteModule);
 router.patch("/modules/:id/toggle", adminController.toggleModuleActive);
 
+// ------------------ SUBMODULE ROUTES ------------------
 router.post("/sub-modules", adminController.addSubModule);
-// router.put("/sub-modules/:id", adminController.updateSubModule);
 router.delete("/sub-modules/:id", adminController.deleteSubModule);
 router.patch("/sub-modules/:id/toggle", adminController.toggleSubModuleActive);
 
-router.post("/questions", adminController.addQuestion);
-router.put("/questions/:id", adminController.updateQuestion);
-router.delete("/questions/:id", adminController.deleteQuestion);
 
-// Route to create submodule with questions
-// router.post(
-//   "/modules/:moduleId/submodules",
-//   adminController.createSubmoduleWithQuestions
-// );
-// File upload route for creating submodule with questions
-router.post("/submodules/upload", adminController.createSubmoduleWithQuestions);
+router.post("/submodules/upload", (req, res, next) => {
+  console.log("hello bro 123 56")
+  next()
+}, verifyAdmin, upload.single("file"),adminController.createSubmoduleWithQuestions)
 
-// Route to get questions for a submodule
+
+ // ,optional file uploadadminController.createSubmoduleWithQuestions
+
 router.get("/submodules/:submoduleId", adminController.getSubmoduleQuestions);
 
-// router.get("/analytics", adminController.getAllAnalytics);
+// ------------------ QUESTION ROUTES ------------------
+router.post("/questions", adminController.addQuestion);
+router.put("/questions/:id", adminController.updateQuestion);
 
 module.exports = router;

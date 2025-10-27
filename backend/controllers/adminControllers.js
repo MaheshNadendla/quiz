@@ -1,797 +1,456 @@
-const Subject = require("../models/Subject");
-const Module = require("../models/Module");
-const SubModule = require("../models/SubModule");
-const Question = require("../models/Question");
-const path = require("path");
-const mongoose = require("mongoose");
-// const { Question, atomic } = require("../models/Question");
+const { supabase } = require("../config/database");
 const multer = require("multer");
-const csv = require("csv-parse");
 const fs = require("fs");
+const XLSX = require("xlsx");
+/* ============================================================
+   SUBJECTS
+============================================================ */
 
-// Add a subject
+// Add Subject
 exports.addSubject = async (req, res) => {
   try {
     const { name, description } = req.body;
-    console.log(name,description,"in add subject")
-    // Validate required fields
-    if (!name || name.trim() === "") {
-      return res.status(400).json({ error: "Subject name is required" });
-    }
+    if (!name) return res.status(400).json({ error: "Subject name is required" });
 
-    const subject = new Subject({
-      name: name.trim(),
-      description: description ? description.trim() : undefined,
-      modules: [], // Initialize empty modules array
-      // ADDED: Default active state for soft-delete
-      isActive: true,
-    });
-    await subject.save();
-    res.status(201).json({ message: "Subject added successfully", subject });
+    const { data, error } = await supabase
+      .from("subjects")
+      .insert([{ name: name.trim(), description, is_active: true }])
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    res.status(201).json({ message: "Subject added successfully", subject: data });
   } catch (error) {
-    res
-      .status(500)
-      .json({ error: "Error adding subject", details: error.message });
+    res.status(500).json({ error: "Error adding subject", details: error.message });
   }
 };
 
-// Update a subject
+// Update Subject
 exports.updateSubject = async (req, res) => {
   try {
     const { id } = req.params;
     const { name, description } = req.body;
 
-    // Validate ID and required fields
-    if (!id) {
-      return res.status(400).json({ error: "Subject ID is required" });
-    }
-    if (!name || name.trim() === "") {
-      return res.status(400).json({ error: "Subject name is required" });
-    }
+    const { data, error } = await supabase
+      .from("subjects")
+      .update({ name, description })
+      .eq("_id", id)
+      .select("*")
+      .single();
 
-    const updatedSubject = await Subject.findByIdAndUpdate(
-      id,
-      {
-        name: name.trim(),
-        description: description ? description.trim() : undefined,
-      },
-      { new: true }
-    );
-    if (!updatedSubject)
-      return res.status(404).json({ error: "Subject not found" });
-    res.json({ message: "Subject updated successfully", updatedSubject });
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: "Subject not found" });
+
+    res.json({ message: "Subject updated successfully", subject: data });
   } catch (error) {
-    res
-      .status(500)
-      .json({ error: "Error updating subject", details: error.message });
+    res.status(500).json({ error: "Error updating subject", details: error.message });
   }
 };
 
-// ADDED: Toggle Subject active state (enable/disable)
+// Delete Subject
+exports.deleteSubject = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabase.from("subjects").delete().eq("_id", id);
+    if (error) throw error;
+    res.json({ message: "Subject deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Error deleting subject", details: error.message });
+  }
+};
+
+// Toggle Subject Active (cascade to modules/submodules)
 exports.toggleSubjectActive = async (req, res) => {
   try {
     const { id } = req.params;
     const { isActive } = req.body;
-    const subject = await Subject.findById(id);
-    if (!subject) return res.status(404).json({ error: "Subject not found" });
-    subject.isActive = Boolean(isActive);
-    await subject.save();
 
-    // Cascade to modules and submodules under this subject
-    const modules = await Module.find({ _id: { $in: subject.modules } });
+    if (!id) return res.status(400).json({ error: "Missing subject ID" });
+
+    const { data: subjectData, error: subjectError } = await supabase
+      .from("subjects")
+      .update({ is_active: !!isActive })
+      .eq("_id", id)
+      .select();
+
+    if (subjectError) throw subjectError;
+    if (!subjectData?.length) return res.status(404).json({ error: "Subject not found" });
+
+    // Fetch all module IDs linked to subject
+    const { data: modules, error: modFetchError } = await supabase
+      .from("modules")
+      .select("_id")
+      .eq("subject_id", id);
+
+    if (modFetchError) throw modFetchError;
+
     const moduleIds = modules.map((m) => m._id);
-    await Module.updateMany({ _id: { $in: moduleIds } }, { $set: { isActive: Boolean(isActive) } });
-    await SubModule.updateMany({ moduleId: { $in: moduleIds } }, { $set: { isActive: Boolean(isActive) } });
+    if (moduleIds.length > 0) {
+      // Update modules
+      const { error: modUpdateError } = await supabase
+        .from("modules")
+        .update({ is_active: !!isActive })
+        .in("_id", moduleIds);
+      if (modUpdateError) throw modUpdateError;
 
-    res.json({ message: `Subject ${isActive ? 'enabled' : 'disabled'}`, subjectId: id, isActive: subject.isActive });
+      // Update submodules under these modules
+      const { error: subUpdateError } = await supabase
+        .from("submodules")
+        .update({ is_active: !!isActive })
+        .in("module_id", moduleIds);
+      if (subUpdateError) throw subUpdateError;
+    }
+
+    res.json({
+      message: `Subject ${isActive ? "enabled" : "disabled"} successfully`,
+      subjectId: id,
+      isActive: !!isActive,
+    });
   } catch (error) {
+    console.error("Toggle subject error:", error.message);
     res.status(500).json({ error: "Error toggling subject", details: error.message });
   }
 };
 
-// Add a module
+/* ============================================================
+   MODULES
+============================================================ */
+
+// Add Module
 exports.addModule = async (req, res) => {
   try {
-    const { name, subjectId } = req.body;
+    const { name, subjectId, googleId } = req.body;
 
-    // Validate required fields
-    if (!name || typeof name !== "string" || name.trim() === "") {
-      return res.status(400).json({ error: "Valid module name is required" });
-    }
-    if (!subjectId) {
-      return res.status(400).json({ error: "Subject ID is required" });
-    }
+   
+    if (!name || !subjectId)
+      return res.status(400).json({ error: "Module name and subjectId are required" });
+    if (googleId) {
+      const { data: user, error: userError } = await supabase
+        .from("users")
+        .select("is_admin")
+        .eq("google_id", googleId)
+        .single();
 
-    // Check if subject exists
-    const subjectExists = await Subject.findById(subjectId);
-    if (!subjectExists) {
-      return res
-        .status(404)
-        .json({ error: "Subject not found. Please create the subject first" });
+      if (userError || !user?.is_admin)
+        return res.status(403).json({ error: "Unauthorized: Admin access required" });
     }
+    const { data: subject, error: subjectError } = await supabase
+      .from("subjects")
+      .select("_id")
+      .eq("_id", subjectId)
+      .single();
 
-    const module = new Module({
-      name: name.trim(),
-      subjectId,
-      subModules: [], // Initialize empty subModules array
+    if (subjectError || !subject)
+      return res.status(404).json({ error: "Subject not found" });
+    const { data, error } = await supabase
+      .from("modules")
+      .insert([{ name, subject_id: subjectId, is_active: true }])
+      .select("*")
+      .single();
+
+    if (error) throw error;
+
+    res.status(201).json({
+      message: "Module created successfully",
+      module: data,
     });
-    await module.save();
-    // Update subject with new module reference
-    subjectExists.modules.push(module._id);
-    await subjectExists.save();
-
-    res.status(201).json({ message: "Module added successfully", module });
   } catch (error) {
-    res
-      .status(500)
-      .json({ error: "Error adding module", details: error.message });
+    console.error("Add Module Error:", error.message);
+    res.status(500).json({
+      error: "Failed to create module",
+      details: error.message,
+    });
   }
 };
 
-// ADDED: Toggle Module active state (enable/disable)
+// Delete Module
+exports.deleteModule = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabase.from("modules").delete().eq("_id", id);
+    if (error) throw error;
+    res.json({ message: "Module deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Error deleting module", details: error.message });
+  }
+};
+
+// Toggle Module Active
 exports.toggleModuleActive = async (req, res) => {
   try {
     const { id } = req.params;
     const { isActive } = req.body;
-    const module = await Module.findById(id);
-    if (!module) return res.status(404).json({ error: "Module not found" });
-    module.isActive = Boolean(isActive);
-    await module.save();
-    await SubModule.updateMany({ moduleId: id }, { $set: { isActive: Boolean(isActive) } });
-    res.json({ message: `Module ${isActive ? 'enabled' : 'disabled'}`, moduleId: id, isActive: module.isActive });
+
+    const { data, error } = await supabase
+      .from("modules")
+      .update({ is_active: !!isActive })
+      .eq("_id", id)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+    res.json({ message: `Module ${isActive ? "enabled" : "disabled"}`, module: data });
   } catch (error) {
     res.status(500).json({ error: "Error toggling module", details: error.message });
   }
 };
 
-// Add a sub-module
+/* ============================================================
+   SUBMODULES
+============================================================ */
+
+// Add Submodule
 exports.addSubModule = async (req, res) => {
   try {
-    const { name, moduleId, isPro, difficulty } = req.body;
-    console.log(name, moduleId, isPro, difficulty);
-    if (
-      !name ||
-      typeof name !== "string" ||
-      name.trim() === "" ||
-      !difficulty
-    ) {
-      return res
-        .status(400)
-        .json({ error: "Valid sub-module name is required" });
-    }
-    if (!moduleId) {
-      return res.status(400).json({ error: "Module ID is required" });
-    }
+    const { name, module_id, is_pro, difficulty } = req.body;
+    if (!name || !module_id)
+      return res.status(400).json({ error: "Submodule name and module_id are required" });
 
-    // Check if module exists
-    const moduleExists = await Module.findById(moduleId);
-    if (!moduleExists) {
-      return res
-        .status(404)
-        .json({ error: "Module not found. Please create the module first" });
-    }
+    const { data: module, error: modError } = await supabase
+      .from("modules")
+      .select("_id")
+      .eq("_id", module_id)
+      .single();
 
-    // Create a new SubModule instance
-    const subModule = new SubModule({
-      name: name.trim(),
-      moduleId,
-      isPro: Boolean(isPro),
-      difficulty,
-      questions: [], // Initialize empty questions array
-    });
-    await subModule.save();
+    if (modError || !module)
+      return res.status(404).json({ error: "Module not found" });
 
-    // Update module with new subModule reference
-    moduleExists.subModules.push(subModule._id);
-    await moduleExists.save();
+    const { data, error } = await supabase
+      .from("submodules")
+      .insert([{ name, module_id, is_pro: !!is_pro, difficulty, is_active: true }])
+      .select("*")
+      .single();
 
-    res
-      .status(201)
-      .json({ message: "Sub-module added successfully", subModule });
+    if (error) throw error;
+    res.status(201).json({ message: "Submodule added successfully", submodule: data });
   } catch (error) {
-    res
-      .status(500)
-      .json({ error: "Error adding sub-module", details: error.message });
+    res.status(500).json({ error: "Error adding submodule", details: error.message });
   }
 };
 
-// ADDED: Toggle SubModule active state (enable/disable)
+// Delete Submodule
+exports.deleteSubModule = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabase.from("submodules").delete().eq("_id", id);
+    if (error) throw error;
+    res.json({ message: "Submodule deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Error deleting submodule", details: error.message });
+  }
+};
+
+// Toggle Submodule Active
 exports.toggleSubModuleActive = async (req, res) => {
   try {
     const { id } = req.params;
-    const { isActive } = req.body;
-    const subModule = await SubModule.findById(id);
-    if (!subModule) return res.status(404).json({ error: "Sub-module not found" });
-    subModule.isActive = Boolean(isActive);
-    await subModule.save();
-    res.json({ message: `Sub-module ${isActive ? 'enabled' : 'disabled'}`, subModuleId: id, isActive: subModule.isActive });
-  } catch (error) {
-    res.status(500).json({ error: "Error toggling submodule", details: error.message });
-  }
-};
 
-// Add a question
-exports.addQuestion = async (req, res) => {
-  try {
-    const { subModuleId, questionText, options } = req.body;
+    const { data: submodule, error: fetchError } = await supabase
+      .from("submodules")
+      .select("is_active")
+      .eq("id", id)
+      .single();
 
-    if (!subModuleId || !questionText || !options) {
-      return res.status(400).json({ error: "All fields are required" });
-    }
-
-    const subModule = await SubModule.findById(subModuleId);
-    if (!subModule) {
-      return res.status(404).json({ error: "Sub-module not found" });
-    }
-
-    const question = new Question({
-      subModuleId,
-      questionText: questionText.trim(),
-      options: options.map((opt) => ({
-        optionText: opt.optionText.trim(),
-        isCorrect: Boolean(opt.isCorrect),
-      })),
-    });
-
-    await question.save();
-
-    // Update subModule with new question reference
-    subModule.questions.push(question._id);
-    await subModule.save();
-
-    res.status(201).json({ message: "Question added successfully", question });
-  } catch (error) {
-    res
-      .status(500)
-      .json({ error: "Error adding question", details: error.message });
-  }
-};
-// Update a question
-exports.updateQuestion = async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { questionText, options, difficulty, subModuleId } = req.body;
-
-    // Validate ID
-    if (!id) {
-      return res.status(400).json({ error: "Question ID is required" });
-    }
-
-    // Build update object with validation
-    const updateData = {};
-
-    if (questionText) {
-      if (typeof questionText !== "string" || questionText.trim() === "") {
-        return res
-          .status(400)
-          .json({ error: "Valid question text is required" });
-      }
-      updateData.questionText = questionText.trim();
-    }
-
-    if (options) {
-      if (!Array.isArray(options) || options.length < 2) {
-        return res
-          .status(400)
-          .json({ error: "At least two options are required" });
-      }
-      if (!options.some((opt) => opt.isCorrect)) {
-        return res
-          .status(400)
-          .json({ error: "At least one correct option must be marked" });
-      }
-      updateData.options = options.map((opt) => ({
-        ...opt,
-        text: opt.text.trim(),
-      }));
-    }
-
-    if (difficulty) {
-      const validDifficulties = ["easy", "medium", "hard"];
-      if (!validDifficulties.includes(difficulty.toLowerCase())) {
-        return res.status(400).json({
-          error: "Invalid difficulty level. Must be easy, medium, or hard",
-        });
-      }
-      updateData.difficulty = difficulty.toLowerCase();
-    }
-
-    if (subModuleId) {
-      const subModuleExists = await SubModule.findById(subModuleId);
-      if (!subModuleExists) {
-        return res.status(404).json({ error: "Sub-module not found" });
-      }
-      updateData.subModuleId = subModuleId;
-    }
-
-    const updatedQuestion = await Question.findByIdAndUpdate(id, updateData, {
-      new: true,
-    });
-    if (!updatedQuestion)
-      return res.status(404).json({ error: "Question not found" });
-    res.json({ message: "Question updated successfully", updatedQuestion });
-  } catch (error) {
-    res
-      .status(500)
-      .json({ error: "Error updating question", details: error.message });
-  }
-};
-
-/// CHANGED: Soft-disable subject instead of cascading delete
-exports.deleteSubject = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const { id } = req.params;
-
-    const subject = await Subject.findById(id).session(session);
-    if (!subject) {
-      await session.abortTransaction();
-      return res.status(404).json({ error: "Subject not found" });
-    }
-
-    // Soft-disable subject and cascade to modules/submodules
-    subject.isActive = false;
-    await subject.save({ session });
-    await Module.updateMany({ _id: { $in: subject.modules } }, { $set: { isActive: false } }).session(session);
-    await SubModule.updateMany({ moduleId: { $in: subject.modules } }, { $set: { isActive: false } }).session(session);
-
-    await session.commitTransaction();
-
-    res.json({ message: "Subject disabled successfully (soft delete)", subjectId: id });
-  } catch (error) {
-    await session.abortTransaction();
-    res.status(500).json({ error: "Error disabling subject", details: error.message });
-  } finally {
-    session.endSession();
-  }
-};
-
-// CHANGED: Soft-delete Module instead of permanent deletion
-exports.deleteModule = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const { id } = req.params;
-
-    const module = await Module.findById(id).session(session);
-    if (!module) {
-      await session.abortTransaction();
-      return res.status(404).json({ error: "Module not found" });
-    }
-
-    // Instead of deletion, disable module and its submodules
-    module.isActive = false;
-    await module.save({ session });
-    await SubModule.updateMany({ moduleId: id }, { $set: { isActive: false } }).session(session);
-
-    await session.commitTransaction();
-
-    res.json({ message: "Module disabled successfully (soft delete)", moduleId: id });
-  } catch (error) {
-    await session.abortTransaction();
-    res.status(500).json({ error: "Error disabling module", details: error.message });
-  } finally {
-    session.endSession();
-  }
-};
-
-// CHANGED: Soft-delete SubModule instead of permanent deletion
-exports.deleteSubModule = async (req, res) => {
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    const { id } = req.params;
-
-    const subModule = await SubModule.findById(id).session(session);
-    if (!subModule) {
-      await session.abortTransaction();
-      return res.status(404).json({ error: "Sub-module not found" });
-    }
-
-    // Instead of deletion, disable only the submodule
-    subModule.isActive = false;
-    await subModule.save({ session });
-
-    await session.commitTransaction();
-
-    res.json({ message: "Sub-module disabled successfully (soft delete)", subModuleId: id });
-  } catch (error) {
-    await session.abortTransaction();
-    res.status(500).json({ error: "Error disabling sub-module", details: error.message });
-  } finally {
-    session.endSession();
-  }
-};
-// Delete a question (remains the same as it has no dependencies)
-exports.deleteQuestion = async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!id) return res.status(400).json({ error: "Question ID is required" });
-    const deletedQuestion = await Question.findByIdAndDelete(id);
-    if (!deletedQuestion)
-      return res.status(404).json({ error: "Question not found" });
-    res.json({ message: "Question deleted successfully" });
-  } catch (error) {
-    res
-      .status(500)
-      .json({ error: "Error deleting question", details: error.message });
-  }
-};
-
-// Imports remain the same, but ensure mongoose is properly imported
-
-// Configure multer storage
-const storage = multer.diskStorage({
-  destination: function (req, file, cb) {
-    const uploadDir = "uploads";
-    if (!fs.existsSync(uploadDir)) {
-      fs.mkdirSync(uploadDir);
-    }
-    cb(null, uploadDir);
-  },
-  filename: function (req, file, cb) {
-    cb(null, `${Date.now()}-${file.originalname}`);
-  },
-});
-
-const upload = multer({
-  storage: storage,
-  fileFilter: function (req, file, cb) {
-    if (file.mimetype === "application/json" || file.mimetype === "text/csv") {
-      cb(null, true);
-    } else {
-      cb(new Error("Invalid file type. Only JSON and CSV files are allowed."));
-    }
-  },
-}).single("file");
-
-// Helper function to process JSON file
-const processJSONFile = async (filePath, subModuleId, session) => {
-  try {
-    const fileData = JSON.parse(await fs.promises.readFile(filePath, "utf8"));
-    if (!Array.isArray(fileData.questions)) {
-      throw new Error("Invalid JSON format: questions array not found");
-    }
-
-    const questions = [];
-    let i = 0;
-    for (const questionData of fileData.questions) {
-      // Validate question type
-      const validTypes = ['mcq', 'truefalse', 'fillblanks', 'matchfollowing'];
-      const questionType = questionData.questionType || 'mcq';
-      
-      if (!validTypes.includes(questionType)) {
-        throw new Error(`Invalid question type: ${questionType}. Must be one of: ${validTypes.join(', ')}`);
-      }
-
-      // Create question object based on type
-      const questionObj = {
-        subModuleId,
-        questionText: questionData.questionText,
-        questionType: questionType,
-      };
-
-      // Add type-specific fields
-      switch (questionType) {
-        case 'mcq':
-          if (!questionData.options || !Array.isArray(questionData.options)) {
-            throw new Error("MCQ questions must have an options array");
-          }
-          questionObj.options = questionData.options.map((opt) => ({
-            optionText: opt.optionText,
-            isCorrect: Boolean(opt.isCorrect),
-          }));
-          break;
-
-        case 'truefalse':
-          if (typeof questionData.correctAnswer !== 'boolean') {
-            throw new Error("True/False questions must have a correctAnswer boolean field");
-          }
-          questionObj.correctAnswer = questionData.correctAnswer;
-          break;
-
-        case 'fillblanks':
-          if (!questionData.blanks || !Array.isArray(questionData.blanks)) {
-            throw new Error("Fill in the blanks questions must have a blanks array");
-          }
-          questionObj.blanks = questionData.blanks;
-          break;
-
-        case 'matchfollowing':
-          if (!questionData.leftItems || !Array.isArray(questionData.leftItems) ||
-              !questionData.rightItems || !Array.isArray(questionData.rightItems)) {
-            throw new Error("Match the following questions must have leftItems and rightItems arrays");
-          }
-          questionObj.leftItems = questionData.leftItems;
-          questionObj.rightItems = questionData.rightItems;
-          questionObj.correctMappings = questionData.correctMappings || [];
-          break;
-      }
-
-      const question = new Question(questionObj);
-      console.log("questions beech mein = ", questions);
-      if (session) {
-        await question.save({ session });
-      } else {
-        await question.save();
-      }
-      questions.push(question._id);
-      console.log("questions baad mein= ", questions);
-      console.log(i++);
-    }
-
-    // Update submodule with questions
-    const updateOptions = session ? { session, new: true } : { new: true };
-    const result = await SubModule.findByIdAndUpdate(
-      subModuleId,
-      { $push: { questions: { $each: questions } } },
-      updateOptions
-    );
-    console.log(result);
-
-    return questions;
-  } catch (error) {
-    console.log("error", error);
-    throw new Error(`Error processing JSON file: ${error.message}`);
-  }
-};
-
-// Helper function to process CSV file
-const processCSVFile = async (filePath, subModuleId, session) => {
-  try {
-    const questions = [];
-    const records = await new Promise((resolve, reject) => {
-      const results = [];
-      fs.createReadStream(filePath)
-        .pipe(csv.parse({ columns: true, delimiter: "," }))
-        .on("data", (data) => results.push(data))
-        .on("end", () => resolve(results))
-        .on("error", (error) => reject(error));
-    });
-
-    for (const record of records) {
-      const questionType = record.questionType?.toLowerCase() || 'mcq';
-      
-      const questionObj = {
-        subModuleId,
-        questionText: record.questionText.trim(),
-        questionType: questionType,
-      };
-
-      // Process based on question type
-      switch (questionType) {
-        case 'mcq':
-          const options = [];
-          for (let i = 1; i <= 4; i++) {
-            if (record[`option${i}`]) {
-              options.push({
-                optionText: record[`option${i}`].trim(),
-                isCorrect: record[`isCorrect${i}`]?.toLowerCase() === "true",
-              });
-            }
-          }
-          questionObj.options = options;
-          break;
-
-        case 'truefalse':
-          questionObj.correctAnswer = record.correctAnswer?.toLowerCase() === "true";
-          break;
-
-        case 'fillblanks':
-          const blanks = [];
-          for (let i = 1; i <= 5; i++) { // Support up to 5 blanks
-            if (record[`blank${i}`]) {
-              blanks.push(record[`blank${i}`].trim());
-            }
-          }
-          questionObj.blanks = blanks;
-          break;
-
-        case 'matchfollowing':
-          const leftItems = [];
-          const rightItems = [];
-          const correctMappings = [];
-          
-          // Parse left items
-          for (let i = 1; i <= 5; i++) {
-            if (record[`leftItem${i}`]) {
-              leftItems.push(record[`leftItem${i}`].trim());
-            }
-          }
-          
-          // Parse right items
-          for (let i = 1; i <= 5; i++) {
-            if (record[`rightItem${i}`]) {
-              rightItems.push(record[`rightItem${i}`].trim());
-            }
-          }
-          
-          // Parse correct mappings (format: "0:2,1:0,2:1" means leftItem0->rightItem2, etc.)
-          if (record.correctMappings) {
-            const mappings = record.correctMappings.split(',');
-            mappings.forEach(mapping => {
-              const [leftIdx, rightIdx] = mapping.split(':');
-              if (leftIdx && rightIdx) {
-                correctMappings.push({
-                  leftIndex: parseInt(leftIdx.trim()),
-                  rightIndex: parseInt(rightIdx.trim())
-                });
-              }
-            });
-          }
-          
-          questionObj.leftItems = leftItems;
-          questionObj.rightItems = rightItems;
-          questionObj.correctMappings = correctMappings;
-          break;
-
-        default:
-          throw new Error(`Unsupported question type in CSV: ${questionType}`);
-      }
-
-      const question = new Question(questionObj);
-      await question.save({ session });
-      questions.push(question._id);
-    }
-
-    // Update submodule with questions
-    await SubModule.findByIdAndUpdate(
-      subModuleId,
-      { $push: { questions: { $each: questions } } },
-      { session, new: true }
-    );
-
-    return questions;
-  } catch (error) {
-    throw new Error(`Error processing CSV file: ${error.message}`);
-  }
-};
-
-exports.createSubmoduleWithQuestions = async (req, res) => {
-  console.log("backend fxn ke andar aaya");
-  const session = await mongoose.startSession();
-  session.startTransaction();
-
-  try {
-    // Handle file upload first
-    await new Promise((resolve, reject) => {
-      upload(req, res, function (err) {
-        if (err) reject(err);
-        else resolve();
-      });
-    });
-
-    if (!req.file) {
-      throw new Error("Question file is required");
-    }
-
-    console.log(req.body);
-    const { name, moduleId, difficulty } = req.body;
-    const isPro = req.body.isPro === "true"; // or 'false'
-
-    // Validate inputs
-    if (!name || !moduleId || !difficulty) {
-      throw new Error("Missing required fields");
-    }
-
-    // Check if module exists
-
-    let moduleExists = null;
-    try {
-      moduleExists = await Module.findById(moduleId).session(session);
-    } catch (err) {
-      console.error("Error with session while querying module:", err);
-    }
-    if (!moduleExists) {
-      console.log("Module not found");
-      throw new Error("Module not found");
-    }
-
-    // Create submodule
-    const submodule = new SubModule({
-      name: name.trim(),
-      moduleId,
-      difficulty,
-      isPro: Boolean(isPro),
-      questions: [],
-    });
-    if (session) {
-      await submodule.save({ session });
-    } else {
-      await submodule.save();
-    }
-
-    // Process questions based on file type
-    let questionIds;
-
-    if (req.file.mimetype === "application/json") {
-      questionIds = await processJSONFile(
-        req.file.path,
-        submodule._id,
-        session
-      );
-      console.log("Hello");
-      console.log(questionIds);
-    } else {
-      questionIds = await processCSVFile(req.file.path, submodule._id, session);
-    }
-
-    // Update module with new submodule
-    moduleExists.subModules.push(submodule._id);
-    if (session) {
-      await moduleExists.save({ session });
-    } else {
-      await moduleExists.save();
-    }
-
-    // Commit transaction
-    if (session.inTransaction()) {
-      await session.commitTransaction();
-    }
-
-    // Clean up uploaded file
-    fs.unlinkSync(req.file.path);
-    console.log("path ke baad");
-    // Fetch populated submodule
-    const populatedSubmodule = await SubModule.findById(submodule._id)
-      .populate("questions")
-      .lean();
-
-    res.status(201).json({
-      message: "Submodule created successfully with questions",
-      submodule: populatedSubmodule,
-      questionsCount: questionIds.length,
-    });
-  } catch (error) {
-    if (session.inTransaction()) {
-      await session.abortTransaction();
-    }
-
-    // Clean up file if it exists
-    if (req.file?.path && fs.existsSync(req.file.path)) {
-      fs.unlinkSync(req.file.path);
-    }
-
-    res.status(500).json({
-      error: "Failed to create submodule with questions",
-      details: error.message,
-    });
-  } finally {
-    try { session.endSession(); } catch (_) {}
-  }
-};
-
-// Get submodule questions
-exports.getSubmoduleQuestions = async (req, res) => {
-  try {
-    const { submoduleId } = req.params;
-    console.log("id fetched", submoduleId);
-    const submodule = await SubModule.findById(submoduleId).populate(
-      "questions"
-    );
-
-    if (!submodule) {
-      console.log("submodule not found");
+    if (fetchError || !submodule) {
       return res.status(404).json({ error: "Submodule not found" });
     }
 
-    res.json({
-      submodule: {
-        name: submodule.name,
-        difficulty: submodule.difficulty,
-        isPro: submodule.isPro,
-        questions: submodule.questions,
-      },
-    });
-    console.log("chala gya");
+    const newStatus = !submodule.is_active;
+    const { error: updateError } = await supabase
+      .from("submodules")
+      .update({ is_active: newStatus })
+      .eq("id", id);
+
+    if (updateError) throw updateError;
+
+    res.json({ message: "Submodule status updated", isActive: newStatus });
+  } catch (err) {
+    console.error("Error toggling submodule:", err);
+    res.status(500).json({ error: "Failed to toggle submodule" });
+  }
+};
+
+/* ============================================================
+   QUESTIONS
+============================================================ */
+
+// Add Question
+exports.addQuestion = async (req, res) => {
+  try {
+    const { submodule_id, question_text, options, question_type, correct_answer } = req.body;
+    if (!submodule_id || !question_text)
+      return res.status(400).json({ error: "submodule_id and question_text required" });
+
+    const { data, error } = await supabase
+      .from("questions")
+      .insert([
+        {
+          submodule_id,
+          question_text,
+          question_type: question_type || "mcq",
+          options,
+          correct_answer: correct_answer || null,
+        },
+      ])
+      .select("*")
+      .single();
+
+    if (error) throw error;
+    res.status(201).json({ message: "Question added successfully", question: data });
   } catch (error) {
-    res.status(500).json({
-      error: "Error fetching submodule questions",
-      details: error.message,
+    res.status(500).json({ error: "Error adding question", details: error.message });
+  }
+};
+
+// Update Question
+exports.updateQuestion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { question_text, options } = req.body;
+
+    const updateData = {};
+    if (question_text) updateData.question_text = question_text;
+    if (options) updateData.options = options;
+
+    const { data, error } = await supabase
+      .from("questions")
+      .update(updateData)
+      .eq("_id", id)
+      .select("*")
+      .single();
+
+    if (error) throw error;
+    if (!data) return res.status(404).json({ error: "Question not found" });
+
+    res.json({ message: "Question updated successfully", question: data });
+  } catch (error) {
+    res.status(500).json({ error: "Error updating question", details: error.message });
+  }
+};
+
+// Delete Question
+exports.deleteQuestion = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { error } = await supabase.from("questions").delete().eq("_id", id);
+    if (error) throw error;
+    res.json({ message: "Question deleted successfully" });
+  } catch (error) {
+    res.status(500).json({ error: "Error deleting question", details: error.message });
+  }
+};
+
+/* ============================================================
+   FILE UPLOAD (JSON)
+============================================================ */
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = "uploads";
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir);
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => cb(null, `${Date.now()}-${file.originalname}`),
+});
+
+const upload = multer({ storage }).single("file");
+
+exports.createSubmoduleWithQuestions = async (req, res) => {
+  try {
+    const { moduleId, submoduleName, isPro, difficulty, questions } = req.body;
+    let parsedQuestions = [];
+
+    console.log(req.body);
+
+    // CASE 1: If Excel file was uploaded
+    if (req.file) {
+      console.log("Processing uploaded Excel file...");
+      const filePath = req.file.path;
+
+      const workbook = XLSX.readFile(filePath);
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      parsedQuestions = XLSX.utils.sheet_to_json(sheet);
+
+      fs.unlinkSync(filePath); // remove temp file
+    }
+
+    // CASE 2: If JSON questions were provided directly
+    else if (questions) {
+      console.log("Processing JSON questions...");
+      parsedQuestions = typeof questions === "string" ? JSON.parse(questions) : questions;
+    } else {
+      return res.status(400).json({ error: "No file or JSON data provided" });
+    }
+
+    if (!Array.isArray(parsedQuestions) || parsedQuestions.length === 0) {
+      return res.status(400).json({ error: "No valid questions found" });
+    }
+
+    if (!moduleId || !submoduleName) {
+      return res.status(400).json({ error: "Missing moduleId or submoduleName" });
+    }
+
+    // Insert submodule into Supabase
+    const { data: submoduleData, error: submoduleError } = await supabase
+      .from("submodules")
+      .insert([
+        {
+          module_id: moduleId,
+          name: submoduleName,
+          is_pro: isPro === "true" || isPro === true,
+          difficulty: difficulty || "easy",
+          is_active: true,
+        },
+      ])
+      .select()
+      .single();
+
+    if (submoduleError) throw submoduleError;
+
+    // Insert all questions
+    const formattedQuestions = parsedQuestions.map((q) => ({
+      question_text: q.question || q.Question || "",
+      option_a: q.option_a || q.OptionA || "",
+      option_b: q.option_b || q.OptionB || "",
+      option_c: q.option_c || q.OptionC || "",
+      option_d: q.option_d || q.OptionD || "",
+      correct_answer: q.correct_answer || q.Correct || "",
+      submodule_id: submoduleData.id,
+    }));
+
+    const { error: insertError } = await supabase
+      .from("questions")
+      .insert(formattedQuestions);
+
+    if (insertError) throw insertError;
+
+    res.json({
+      message: "Submodule and questions uploaded successfully",
+      submodule: submoduleData,
+      totalQuestions: formattedQuestions.length,
     });
+  } catch (err) {
+    console.error("Error uploading submodule:", err);
+    res.status(500).json({ error: err.message || "Failed to upload submodule" });
+  }
+};
+
+// Get Submodule with Questions
+exports.getSubmoduleQuestions = async (req, res) => {
+  try {
+    const { submoduleId } = req.params;
+
+    const { data: questions, error } = await supabase
+      .from("questions")
+      .select("*")
+      .eq("submodule_id", submoduleId);
+
+    if (error) throw error;
+
+    res.json({ questions });
+  } catch (err) {
+    console.error("Error fetching submodule questions:", err);
+    res.status(500).json({ error: "Failed to fetch submodule questions" });
   }
 };

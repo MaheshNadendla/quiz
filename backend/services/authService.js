@@ -1,63 +1,77 @@
 const { OAuth2Client } = require("google-auth-library");
 const jwt = require("jsonwebtoken");
-const User = require("../models/User");
 const dotenv = require("dotenv");
-const { supabase } = require("../config/db");
+const { supabase } = require("../config/database");
+
 dotenv.config();
 
-// Google OAuth Client to verify the token
 const client = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
-// Function to verify Google token and create user if necessary
+/**
+ * Verify Google token, fetch or create user in Supabase,
+ * and return both user + JWT token
+ */
 const verifyGoogleTokenAndCreateUser = async (token) => {
   try {
-    // Verify the token using Google OAuth client
+    // Verify the Google token
     const ticket = await client.verifyIdToken({
       idToken: token,
       audience: process.env.GOOGLE_CLIENT_ID,
     });
 
-    // Extract the user info from the token payload
-    const { name, email, picture, sub } = ticket.getPayload();
-    const google_id = sub;
+    const { name, email, picture, sub: google_id } = ticket.getPayload();
 
-    console.log("gid : ",google_id)
+    // Check if user exists
+    const { data: existingUser, error: selectError } = await supabase
+      .from("users")
+      .select("*")
+      .eq("google_id", google_id)
+      .maybeSingle();
 
-    // Check if the user already exists in the database
-          const { data , error  } = await supabase
-        .from('users')
-        .select('*')
-        .eq('google_id', sub)
+    if (selectError) throw selectError;
+
+    let user = existingUser;
+
+    // If not found, create a new user
+    if (!user) {
+      const { data: newUser, error: insertError } = await supabase
+        .from("users")
+        .insert([
+          {
+            google_id,
+            name,
+            email,
+            picture,
+            is_subscribed: false,
+            is_admin: false,
+          },
+        ])
+        .select()
         .single();
 
-      // if (fetchError && fetchError.code !== 'PGRST116') {
-      //   // An actual error occurred (PGRST116 = no rows found)
-      //   return { error: error.message };
-      // }
+      if (insertError) throw insertError;
+      user = newUser;
+    }
 
-      let user = data;
+    const jwtPayload = {
+      id: user._id,
+      googleId: user.google_id,
+      name:user.name,
+      email: user.email,
+      picture: user.picture,
+      isSubscribed: user.is_subscribed,
+      isAdmin: user.is_admin,
+    };
 
-      if (!user) {
-        // User doesn't exist, create a new one
-        const { data, error } = await supabase
-          .from('users')
-          .insert([{ google_id, name, email, picture }])
-          .select()
-          .single(); // select() + single() returns the inserted row
-
-        if (error) return { error: error.message };
-
-        user = data;
-      }
-
-    // Generate JWT token with the user's ID and subscription status
+    // Generate JWT token
     const jwtToken = jwt.sign(
-      { userId: user.id, isSubscribed: user.is_subscribed },
+
+      jwtPayload,
       process.env.JWT_SECRET,
-      { expiresIn: "1h" }
+      { expiresIn: "7d" }
     );
 
-    // Return user details and the generated JWT token
+    // Return result
     return { user, jwtToken };
   } catch (error) {
     console.error("Error verifying Google token:", error.message);

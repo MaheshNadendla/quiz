@@ -1,0 +1,105 @@
+-- Enable UUID generation if not already
+CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+
+-- ==========================================
+-- SUBJECTS
+-- ==========================================
+CREATE TABLE IF NOT EXISTS subjects (
+  _id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  name text NOT NULL,
+  description text,
+  is_active boolean DEFAULT true,
+  created_at timestamp DEFAULT now()
+);
+
+-- ==========================================
+-- MODULES
+-- ==========================================
+CREATE TABLE IF NOT EXISTS modules (
+  _id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  subject_id uuid REFERENCES subjects(_id) ON DELETE CASCADE,
+  name text NOT NULL,
+  is_active boolean DEFAULT true,
+  created_at timestamp DEFAULT now()
+);
+
+-- ==========================================
+-- SUBMODULES
+-- ==========================================
+CREATE TABLE IF NOT EXISTS submodules (
+  _id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  module_id uuid REFERENCES modules(_id) ON DELETE CASCADE,
+  name text NOT NULL,
+  difficulty text CHECK (difficulty IN ('easy', 'medium', 'hard')),
+  is_pro boolean DEFAULT false,
+  is_active boolean DEFAULT true,
+  created_at timestamp DEFAULT now()
+);
+
+-- ==========================================
+-- QUESTIONS
+-- ==========================================
+CREATE TABLE IF NOT EXISTS questions (
+  _id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  submodule_id uuid REFERENCES submodules(_id) ON DELETE CASCADE,
+  question_text text NOT NULL,
+  question_type text CHECK (question_type IN ('mcq', 'truefalse', 'fillblanks', 'matchfollowing')) DEFAULT 'mcq',
+  options jsonb,
+  correct_answer boolean,
+  blanks jsonb,
+  left_items jsonb,
+  right_items jsonb,
+  correct_mappings jsonb,
+  created_at timestamp DEFAULT now()
+);
+
+-- ==========================================
+-- USERS
+-- ==========================================
+CREATE TABLE IF NOT EXISTS users (
+  _id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  google_id text UNIQUE NOT NULL,
+  name text,
+  email text UNIQUE,
+  picture text,
+  is_subscribed boolean DEFAULT false,
+  is_admin boolean DEFAULT false,
+  created_at timestamp DEFAULT now()
+);
+
+-- ==========================================
+-- PAYMENTS
+-- ==========================================
+CREATE TABLE IF NOT EXISTS payments (
+  _id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id uuid REFERENCES users(_id) ON DELETE CASCADE,
+  email text NOT NULL,
+  card_last_four_digits text NOT NULL,
+  amount text NOT NULL,
+  payment_status text DEFAULT 'completed',
+  payment_date timestamp DEFAULT now()
+);
+
+-- ==========================================
+-- ANALYTICS
+-- ==========================================
+CREATE TABLE IF NOT EXISTS analytics (
+  _id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  google_id text NOT NULL,
+  sub_module_id uuid REFERENCES submodules(_id) ON DELETE CASCADE,
+  subject_id uuid REFERENCES subjects(_id) ON DELETE CASCADE,
+  tag_counts jsonb DEFAULT '{}'::jsonb,
+  question_answers jsonb DEFAULT '[]'::jsonb,
+  total_time_spent int DEFAULT 0,
+  correct_answers int DEFAULT 0,
+  incorrect_answers int DEFAULT 0,
+  progress int DEFAULT 0,
+  updated_at timestamp DEFAULT now()
+);
+
+CREATE TABLE IF NOT EXISTS quizzes (
+  _id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+  title text NOT NULL,
+  questions jsonb NOT NULL,
+  created_at timestamp DEFAULT now()
+);
